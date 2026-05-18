@@ -1,10 +1,669 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme.dart';
+import '../../../data/models/film_model.dart';
+import '../../../providers/providers.dart';
+import '../edit_film/edit_film_screen.dart';
 
-class DetailScreen extends StatelessWidget {
-  const DetailScreen({super.key});
+class DetailScreen extends ConsumerWidget {
+  final String filmId;
+
+  const DetailScreen({super.key, required this.filmId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filmAsync = ref.watch(filmDetailProvider(filmId));
+
+    return filmAsync.when(
+      loading: () => const Scaffold(
+        backgroundColor: AppTheme.background,
+        body: Center(
+          child: CircularProgressIndicator(color: AppTheme.primary),
+        ),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: AppTheme.background,
+        appBar: AppBar(
+          backgroundColor: AppTheme.background,
+          iconTheme: const IconThemeData(color: AppTheme.textPrimary),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline,
+                  color: AppTheme.primary, size: 64),
+              const SizedBox(height: 16),
+              Text(
+                'Gagal memuat detail film',
+                style:
+                    const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$e',
+                style: const TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (film) => _DetailView(film: film),
+    );
+  }
+}
+
+class _DetailView extends ConsumerStatefulWidget {
+  final FilmModel film;
+
+  const _DetailView({required this.film});
+
+  @override
+  ConsumerState<_DetailView> createState() => _DetailViewState();
+}
+
+class _DetailViewState extends ConsumerState<_DetailView> {
+  bool _isInWatchlist = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkWatchlist();
+  }
+
+  Future<void> _checkWatchlist() async {
+    final repo = ref.read(watchlistRepositoryProvider);
+    final list = await repo.getWatchlist();
+    if (mounted) {
+      setState(() {
+        _isInWatchlist = list.any((f) => f.id == widget.film.id);
+      });
+    }
+  }
+
+  Future<void> _toggleWatchlist() async {
+    final repo = ref.read(watchlistRepositoryProvider);
+    if (_isInWatchlist) {
+      await repo.removeFromWatchlist(widget.film.id);
+    } else {
+      await repo.addToWatchlist(widget.film);
+    }
+    setState(() => _isInWatchlist = !_isInWatchlist);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                _isInWatchlist ? Icons.bookmark_added : Icons.bookmark_remove,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _isInWatchlist
+                    ? 'Ditambahkan ke watchlist'
+                    : 'Dihapus dari watchlist',
+              ),
+            ],
+          ),
+          backgroundColor: _isInWatchlist ? Colors.green : Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteFilm() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.card,
+        title: const Text(
+          'Hapus Film',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: Text(
+          'Yakin ingin menghapus "${widget.film.judul}"?',
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal',
+                style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      try {
+        await ref
+            .read(filmNotifierProvider.notifier)
+            .deleteFilm(widget.film.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Film berhasil dihapus'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal menghapus film: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Color _getRatingColor(int rating) {
+    if (rating >= 75) return Colors.green;
+    if (rating >= 50) return AppTheme.gold;
+    return AppTheme.primary;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Detail - Anggota 5')));
+    final film = widget.film;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: CustomScrollView(
+        slivers: [
+          // ── SliverAppBar dengan Gambar Sampul ──
+          SliverAppBar(
+            expandedHeight: 280,
+            pinned: true,
+            backgroundColor: AppTheme.background,
+            iconTheme: const IconThemeData(color: AppTheme.textPrimary),
+            actions: [
+              // Tombol Edit
+              IconButton(
+                icon: const Icon(Icons.edit_outlined,
+                    color: AppTheme.textPrimary),
+                tooltip: 'Edit Film',
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditFilmScreen(film: film),
+                    ),
+                  );
+                  if (result == true && mounted) {
+                    ref.invalidate(filmDetailProvider(film.id));
+                  }
+                },
+              ),
+              // Tombol Hapus
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: AppTheme.primary),
+                tooltip: 'Hapus Film',
+                onPressed: _deleteFilm,
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Gambar sampul
+                  film.gambarSampul.isNotEmpty
+                      ? Image.network(
+                          film.gambarSampul,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: AppTheme.surface,
+                            child: const Icon(
+                              Icons.movie,
+                              color: AppTheme.textSecondary,
+                              size: 64,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: AppTheme.surface,
+                          child: const Icon(
+                            Icons.movie,
+                            color: AppTheme.textSecondary,
+                            size: 64,
+                          ),
+                        ),
+                  // Gradient overlay bawah
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          AppTheme.background,
+                        ],
+                        stops: [0.5, 1.0],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Konten Detail ──
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Poster + Info Utama
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Poster
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: film.gambarPoster.isNotEmpty
+                            ? Image.network(
+                                film.gambarPoster,
+                                width: 110,
+                                height: 160,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 110,
+                                  height: 160,
+                                  color: AppTheme.card,
+                                  child: const Icon(
+                                    Icons.image_not_supported,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                width: 110,
+                                height: 160,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.card,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.movie,
+                                  color: AppTheme.textSecondary,
+                                  size: 40,
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Info samping poster
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Badge Kategori
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: AppTheme.primary.withOpacity(0.4)),
+                              ),
+                              child: Text(
+                                film.kategori,
+                                style: const TextStyle(
+                                  color: AppTheme.primary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Judul
+                            Text(
+                              film.judul,
+                              style: const TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Tahun Rilis
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_today,
+                                    color: AppTheme.textSecondary, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${film.tanggalRilis}',
+                                  style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            // Rating
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.star_rounded,
+                                  color: _getRatingColor(film.rating),
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${film.ratingDesimal.toStringAsFixed(1)} / 10',
+                                  style: TextStyle(
+                                    color: _getRatingColor(film.rating),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '(${film.rating}/100)',
+                                  style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Rating Bar Visual
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: film.rating / 100,
+                      minHeight: 6,
+                      backgroundColor: AppTheme.surface,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                          _getRatingColor(film.rating)),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Tombol Aksi (Watchlist + Trailer)
+                  Row(
+                    children: [
+                      // Tombol Watchlist
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _toggleWatchlist,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _isInWatchlist
+                                ? AppTheme.gold
+                                : AppTheme.textPrimary,
+                            side: BorderSide(
+                              color: _isInWatchlist
+                                  ? AppTheme.gold
+                                  : AppTheme.textSecondary,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: Icon(
+                            _isInWatchlist
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                            size: 18,
+                          ),
+                          label: Text(
+                            _isInWatchlist ? 'Tersimpan' : 'Watchlist',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Tombol Trailer
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: film.urlTrailer.isNotEmpty
+                              ? () {
+                                  // TODO: buka URL trailer
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content:
+                                          Text('Trailer: ${film.urlTrailer}'),
+                                      backgroundColor: AppTheme.card,
+                                    ),
+                                  );
+                                }
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.play_circle_filled, size: 18),
+                          label: const Text(
+                            'Trailer',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Coming Soon Badge
+                  if (film.isComingSoon == true) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.gold.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border:
+                            Border.all(color: AppTheme.gold.withOpacity(0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.access_time,
+                              color: AppTheme.gold, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            'Coming Soon',
+                            style: TextStyle(
+                              color: AppTheme.gold,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ── Ringkasan ──
+                  const Text(
+                    'Ringkasan',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    film.ringkasan.isNotEmpty
+                        ? film.ringkasan
+                        : 'Tidak ada ringkasan tersedia.',
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 14,
+                      height: 1.7,
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // ── Info Tambahan ──
+                  const Text(
+                    'Info Film',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _InfoCard(film: film),
+
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  final FilmModel film;
+
+  const _InfoCard({required this.film});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          _InfoRow(
+            icon: Icons.category_outlined,
+            label: 'Genre',
+            value: film.kategori,
+          ),
+          const Divider(color: AppTheme.surface, height: 20),
+          _InfoRow(
+            icon: Icons.calendar_today_outlined,
+            label: 'Tahun Rilis',
+            value: '${film.tanggalRilis}',
+          ),
+          const Divider(color: AppTheme.surface, height: 20),
+          _InfoRow(
+            icon: Icons.star_outline_rounded,
+            label: 'Skor Rating',
+            value:
+                '${film.rating} / 100  (${film.ratingDesimal.toStringAsFixed(1)} ★)',
+          ),
+          if (film.urlTrailer.isNotEmpty) ...[
+            const Divider(color: AppTheme.surface, height: 20),
+            _InfoRow(
+              icon: Icons.play_circle_outline,
+              label: 'Trailer',
+              value: film.urlTrailer,
+              isUrl: true,
+            ),
+          ],
+          if (film.isComingSoon != null) ...[
+            const Divider(color: AppTheme.surface, height: 20),
+            _InfoRow(
+              icon: Icons.new_releases_outlined,
+              label: 'Status',
+              value: film.isComingSoon! ? 'Coming Soon' : 'Sudah Rilis',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isUrl;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.isUrl = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppTheme.primary, size: 18),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: isUrl ? AppTheme.primary : AppTheme.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              decoration: isUrl ? TextDecoration.underline : null,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+        ),
+      ],
+    );
   }
 }

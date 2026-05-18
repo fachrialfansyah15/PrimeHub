@@ -11,6 +11,9 @@ import '../presentation/screens/home/home_screen.dart';
 import '../presentation/screens/detail/detail_screen.dart';
 import '../presentation/screens/watchlist/watchlist_screen.dart';
 import '../presentation/screens/tambah_film/tambah_film_screen.dart';
+import '../data/models/film_model.dart';
+import '../presentation/screens/detail/detail_screen.dart';
+import '../presentation/screens/edit_film/edit_film_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -62,13 +65,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Anggota 5 (Galank) ────────────────────────────
       GoRoute(
         path: '/detail/:id',
-        builder: (context, state) => const DetailScreen(),
+        builder: (context, state) => DetailScreen(
+          filmId: state.pathParameters['id']!,
+        ),
       ),
       GoRoute(
         path: '/film/edit/:id',
-        builder: (context, state) => const Scaffold(
-          body: Center(child: Text('Form Edit - dikerjakan Anggota 5')),
-        ),
+        builder: (context, state) {
+          // Ambil film dari extra yang dikirim saat navigasi
+          final film = state.extra as FilmModel;
+          return EditFilmScreen(film: film);
+        },
       ),
 
       // ── Anggota 2 (Kelvin) ────────────────────────────
