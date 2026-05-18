@@ -76,11 +76,19 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(
                 child: Column(
                   children: [
+                    // Icon dengan gradient Electric Wave
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.primary,
+                        gradient: AppTheme.electricWaveGradient,
                         borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primary.withOpacity(0.4),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
                       child: const Icon(
                         Icons.movie_filter_rounded,
@@ -89,13 +97,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'PrimeHub',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
+                    ShaderMask(
+                      shaderCallback: (bounds) =>
+                          AppTheme.electricWaveGradient.createShader(bounds),
+                      child: const Text(
+                        'PrimeHub',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -191,37 +203,57 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 28),
 
-                    // Tombol Masuk
+                    // ── Tombol Masuk (gradient) ──
                     SizedBox(
                       width: double.infinity,
                       height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor:
-                              AppTheme.primary.withOpacity(0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: _isLoading
+                              ? null
+                              : AppTheme.electricWaveGradient,
+                          color: _isLoading
+                              ? AppTheme.primary.withOpacity(0.4)
+                              : null,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: _isLoading
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: AppTheme.primary.withOpacity(0.4),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2.5,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            disabledBackgroundColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : const Text(
+                                  'Masuk',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              )
-                            : const Text(
-                                'Masuk',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                        ),
                       ),
                     ),
                   ],
@@ -263,12 +295,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   TextButton(
                     onPressed: () => context.push('/register'),
-                    child: const Text(
-                      'Daftar sekarang',
-                      style: TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                    child: ShaderMask(
+                      shaderCallback: (bounds) =>
+                          AppTheme.electricWaveGradient.createShader(bounds),
+                      child: const Text(
+                        'Daftar sekarang',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -291,7 +327,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-      prefixIcon: Icon(icon, color: AppTheme.textSecondary, size: 20),
+      prefixIcon: Icon(icon, color: AppTheme.primaryLight, size: 20),
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: AppTheme.surface,
@@ -301,7 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+        borderSide: const BorderSide(color: AppTheme.primaryLight, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -309,10 +345,11 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+        borderSide: const BorderSide(color: AppTheme.primaryLight, width: 1.5),
       ),
-      errorStyle: const TextStyle(color: AppTheme.primary, fontSize: 11),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      errorStyle: const TextStyle(color: AppTheme.primaryLight, fontSize: 11),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 }
