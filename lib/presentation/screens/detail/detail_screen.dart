@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../../core/theme.dart';
 import '../../../data/models/film_model.dart';
 import '../../../providers/providers.dart';
@@ -57,11 +58,36 @@ class _DetailView extends ConsumerStatefulWidget {
 
 class _DetailViewState extends ConsumerState<_DetailView> {
   bool _isInWatchlist = false;
+  YoutubePlayerController? _youtubeController;
 
   @override
   void initState() {
     super.initState();
     _checkWatchlist();
+    _initYoutubePlayer();
+  }
+
+  void _initYoutubePlayer() {
+    final url = widget.film.urlTrailer;
+    if (url.isNotEmpty) {
+      final videoId = YoutubePlayer.convertUrlToId(url);
+      if (videoId != null) {
+        _youtubeController = YoutubePlayerController(
+          initialVideoId: videoId,
+          flags: const YoutubePlayerFlags(
+            autoPlay: false,
+            mute: false,
+            enableCaption: false,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _youtubeController?.dispose();
+    super.dispose();
   }
 
   Future<void> _checkWatchlist() async {
@@ -192,6 +218,26 @@ class _DetailViewState extends ConsumerState<_DetailView> {
   Widget build(BuildContext context) {
     final film = widget.film;
 
+    // Jika ada YouTube player, wrap Scaffold dengan YoutubePlayerBuilder
+    if (_youtubeController != null) {
+      return YoutubePlayerBuilder(
+        player: YoutubePlayer(
+          controller: _youtubeController!,
+          showVideoProgressIndicator: true,
+          progressIndicatorColor: AppTheme.primary,
+          progressColors: ProgressBarColors(
+            playedColor: AppTheme.primary,
+            handleColor: AppTheme.primary,
+          ),
+        ),
+        builder: (context, player) => _buildScaffold(film, player),
+      );
+    }
+
+    return _buildScaffold(film, null);
+  }
+
+  Widget _buildScaffold(FilmModel film, Widget? youtubePlayer) {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: CustomScrollView(
@@ -347,61 +393,29 @@ class _DetailViewState extends ConsumerState<_DetailView> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _toggleWatchlist,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _isInWatchlist
-                                ? AppTheme.gold
-                                : AppTheme.textPrimary,
-                            side: BorderSide(
-                                color: _isInWatchlist
-                                    ? AppTheme.gold
-                                    : AppTheme.textSecondary),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                          icon: Icon(
-                              _isInWatchlist
-                                  ? Icons.bookmark
-                                  : Icons.bookmark_border,
-                              size: 18),
-                          label: Text(
-                              _isInWatchlist ? 'Tersimpan' : 'Watchlist',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: film.urlTrailer.isNotEmpty
-                              ? () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content: Text(
-                                            'Trailer: ${film.urlTrailer}'),
-                                        backgroundColor: AppTheme.card),
-                                  );
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                          icon: const Icon(Icons.play_circle_filled, size: 18),
-                          label: const Text('Trailer',
-                              style:
-                                  TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                    ],
+                  // Tombol Watchlist (tombol Trailer dihapus karena sudah ada player)
+                  OutlinedButton.icon(
+                    onPressed: _toggleWatchlist,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _isInWatchlist
+                          ? AppTheme.gold
+                          : AppTheme.textPrimary,
+                      side: BorderSide(
+                          color: _isInWatchlist
+                              ? AppTheme.gold
+                              : AppTheme.textSecondary),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: Icon(
+                        _isInWatchlist
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
+                        size: 18),
+                    label: Text(
+                        _isInWatchlist ? 'Tersimpan' : 'Tambah ke Watchlist',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 24),
                   if (film.isComingSoon == true) ...[
@@ -431,6 +445,48 @@ class _DetailViewState extends ConsumerState<_DetailView> {
                     ),
                     const SizedBox(height: 20),
                   ],
+                  // ── Trailer Section ──
+                  if (youtubePlayer != null) ...[
+                    const Text('Trailer',
+                        style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: youtubePlayer,
+                    ),
+                    const SizedBox(height: 24),
+                  ] else if (film.urlTrailer.isNotEmpty) ...[
+                    // URL ada tapi bukan YouTube → tampil info
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppTheme.textSecondary.withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              color: AppTheme.textSecondary, size: 18),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'URL trailer tidak dapat diputar di dalam aplikasi.',
+                              style: TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  // ── Ringkasan ──
                   const Text('Ringkasan',
                       style: TextStyle(
                           color: AppTheme.textPrimary,
