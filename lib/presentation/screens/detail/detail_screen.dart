@@ -1,5 +1,7 @@
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:video_player/video_player.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../../core/theme.dart';
 import '../../../data/models/film_model.dart';
@@ -59,6 +61,8 @@ class _DetailView extends ConsumerStatefulWidget {
 class _DetailViewState extends ConsumerState<_DetailView> {
   bool _isInWatchlist = false;
   YoutubePlayerController? _youtubeController;
+  VideoPlayerController? _videoController;
+  ChewieController? _chewieController;
 
   @override
   void initState() {
@@ -80,13 +84,40 @@ class _DetailViewState extends ConsumerState<_DetailView> {
             enableCaption: false,
           ),
         );
+      } else {
+        // Bukan YouTube → gunakan video_player
+        _initVideoPlayer(url);
       }
     }
+  }
+
+  Future<void> _initVideoPlayer(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    _videoController = VideoPlayerController.networkUrl(uri);
+    await _videoController!.initialize();
+    _chewieController = ChewieController(
+      videoPlayerController: _videoController!,
+      autoPlay: false,
+      looping: false,
+      allowFullScreen: true,
+      allowMuting: true,
+      placeholder: Container(color: Colors.black),
+      materialProgressColors: ChewieProgressColors(
+        playedColor: AppTheme.primary,
+        handleColor: AppTheme.primary,
+        bufferedColor: AppTheme.primary.withOpacity(0.3),
+        backgroundColor: AppTheme.surface,
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _youtubeController?.dispose();
+    _chewieController?.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
@@ -459,29 +490,26 @@ class _DetailViewState extends ConsumerState<_DetailView> {
                     ),
                     const SizedBox(height: 24),
                   ] else if (film.urlTrailer.isNotEmpty) ...[
-                    // URL ada tapi bukan YouTube → tampil info
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: AppTheme.textSecondary.withOpacity(0.3)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.info_outline,
-                              color: AppTheme.textSecondary, size: 18),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'URL trailer tidak dapat diputar di dalam aplikasi.',
-                              style: TextStyle(
-                                  color: AppTheme.textSecondary, fontSize: 13),
-                            ),
-                          ),
-                        ],
+                    // URL non-YouTube → putar di dalam aplikasi
+                    const Text('Trailer',
+                        style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: _chewieController != null
+                            ? Chewie(controller: _chewieController!)
+                            : Container(
+                                color: AppTheme.surface,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                      color: AppTheme.primary),
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 24),
