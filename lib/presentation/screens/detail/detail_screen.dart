@@ -65,42 +65,64 @@ class _DetailViewState extends ConsumerState<_DetailView> {
   }
 
   Future<void> _checkWatchlist() async {
-    final repo = ref.read(watchlistRepositoryProvider);
-    final list = await repo.getWatchlist();
-    if (mounted) {
-      setState(() {
-        _isInWatchlist = list.any((f) => f.id == widget.film.id);
-      });
+    try {
+      final repo = ref.read(watchlistRepositoryProvider);
+      final isIn = await repo.isInWatchlist(widget.film.id);
+      if (mounted) {
+        setState(() {
+          _isInWatchlist = isIn;
+        });
+      }
+    } catch (e) {
+      // Gagal cek watchlist, default false
     }
   }
 
   Future<void> _toggleWatchlist() async {
     final repo = ref.read(watchlistRepositoryProvider);
-    if (_isInWatchlist) {
-      await repo.removeFromWatchlist(widget.film.id);
-    } else {
-      await repo.addToWatchlist(widget.film);
-    }
-    setState(() => _isInWatchlist = !_isInWatchlist);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(children: [
-            Icon(
-              _isInWatchlist ? Icons.bookmark_added : Icons.bookmark_remove,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 8),
-            Text(_isInWatchlist
-                ? 'Ditambahkan ke watchlist'
-                : 'Dihapus dari watchlist'),
-          ]),
-          backgroundColor: _isInWatchlist ? Colors.green : Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+    final wasInWatchlist = _isInWatchlist; // simpan state sebelum toggle
+
+    try {
+      if (wasInWatchlist) {
+        await repo.removeFromWatchlist(widget.film.id);
+      } else {
+        await repo.addToWatchlist(widget.film);
+      }
+
+      if (mounted) {
+        setState(() => _isInWatchlist = !wasInWatchlist);
+        // invalidate watchlist provider biar halaman watchlist ikut update
+        ref.invalidate(watchlistProvider);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(children: [
+              Icon(
+                !wasInWatchlist ? Icons.bookmark_added : Icons.bookmark_remove,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Text(!wasInWatchlist
+                  ? 'Ditambahkan ke watchlist'
+                  : 'Dihapus dari watchlist'),
+            ]),
+            backgroundColor: !wasInWatchlist ? Colors.green : Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
